@@ -3,10 +3,18 @@ $start = (Get-Date).AddSeconds(-2)
 "Removing old policy..."
 $r = Invoke-CimMethod -Namespace root/microsoft/Windows/CI -ClassName PS_UpdateAndCompareCIPolicy -MethodName Delete
 
+"Enabling SPython in new policy..."
+$spython = Get-SystemDriver -ScanPath . -UserPEs -NoScript -NoShadowCopy -PathToCatroot .
+$rules = New-CIPolicyRule -DriverFiles `
+    ($spython | ?{ $_.FileName -ieq "spython.exe" }) `
+    -Level Hash `
+    -Fallback FileName
+
 "Merging new policy..."
 $m = Merge-CIPolicy -PolicyPaths `
-    C:\Windows\schemas\CodeIntegrity\ExamplePolicies\AllowMicrosoft.xml, `
+    "${env:SystemRoot}\schemas\CodeIntegrity\ExamplePolicies\AllowMicrosoft.xml", `
     .\policy.xml `
+    -Rules $rules `
     -OutputFilePath merged.xml
 if (-not $?) {
     exit
@@ -15,8 +23,8 @@ if (-not $?) {
 "Updating options..."
 
 # Set audit mode
-#Set-RuleOption .\merged.xml -Option 3
-Set-RuleOption .\merged.xml -Option 3 -Delete
+Set-RuleOption .\merged.xml -Option 3
+#Set-RuleOption .\merged.xml -Option 3 -Delete
 
 # Do not disable scripts or everything will be blocked
 Set-RuleOption .\merged.xml -Option 11 -Delete
@@ -31,7 +39,7 @@ Set-CIPolicyIdInfo .\merged.xml -PolicyName "SPython Code Integrity Demo" -Polic
 
 # Updating policy
 "Updating current policy..."
-$p = ConvertFrom-CIPolicy merged.xml C:\Windows\System32\CodeIntegrity\SiPolicy.bin
+$p = ConvertFrom-CIPolicy merged.xml "${env:SystemRoot}\System32\CodeIntegrity\SiPolicy.bin"
 $r = Invoke-CimMethod -Namespace root/microsoft/Windows/CI -ClassName PS_UpdateAndCompareCIPolicy -MethodName Update -Arguments @{ FilePath = $p }
 
 if ($r.ReturnValue) {

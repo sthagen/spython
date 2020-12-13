@@ -6,4 +6,6 @@ obj/
 *.ilk
 *.obj
 *.o
-/linux_xattr/spython
+**/spython
+**/spython.log
+__pycache__/
